@@ -51,6 +51,10 @@ class Graphics {
         Graphics.context.fillStyle = colour;
         Graphics.context.fillRect(x, y, w, h);
     }
+    static lineRect(x, y, w, h, colour = Graphics.fg) {
+        Graphics.context.strokeStyle = colour;
+        Graphics.context.strokeRect(x, y, w, h);
+    }
     static drawCircle(x, y, radius, fill = null, stroke = Graphics.fg, strokeWidth = 1) {
         let ctx = Graphics.context;
         ctx.beginPath();
