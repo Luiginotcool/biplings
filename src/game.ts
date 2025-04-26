@@ -17,20 +17,43 @@ class Game {
         Game.pos = {x: 0, y: 0}  
         
         let factor = 1/2;
-        let width = 5;
+        let width = 10;
         let height = width;
-        Game.grid = new Grid(factor, width, height);
+        Game.grid = new Grid(factor, width, height, 200);
         Game.cells = this.grid.cells;
         [Game.extraCells, Game.blankGrid] = Cell.blankCellArray(Game.grid);
     }
 
     static gameLoop(dt: number): void {
+        let speed = 4;
+        if (Input.keys.left) {
+            Game.pos.x += speed
+        }
+        if (Input.keys.right) {
+            Game.pos.x -= speed
+        }
+        if (Input.keys.up) {
+            Game.pos.y += speed
+        }
+        if (Input.keys.down) {
+            Game.pos.y -= speed
+        }
 
-        Game.pos.x = App.frames / 1;
 
-        Game.grid.mapScreenOrigin = Game.pos;
-        Game.blankGrid.mapScreenOrigin = Game.pos;
+    
+        let x = Game.pos.x
+        let y = Game.pos.y
+        let xIso = x - y;
+        let yIso = y*this.grid.factor + x*this.grid.factor;
+        x = xIso + (App.width - Game.grid.sw) /2
+        y = yIso + (App.width - Game.grid.sw) /2
+        Game.grid.mapScreenOrigin = {x: x, y: y}
+        Game.blankGrid.mapScreenOrigin = {x: x, y: y}
+
+        Game.grid.updateCenterMidpoint();
+        Game.blankGrid.updateCenterMidpoint();
         Game.draw();
+        console.log(Game.blankGrid.gameOrigin);
     }
 
     static draw(): void {
@@ -61,18 +84,20 @@ class Game {
             cell.draw(blankGrid);
         })
 
-        Graphics.fillRect(0, 0, w, y1)
-        Graphics.fillRect(0, 0, x1, h)
-        Graphics.fillRect(0, h-y1, w, h-y1)
-        Graphics.fillRect(w-x1, 0, w-x1, h)
+
 
         Game.cells.forEach((cell) => {
             cell.draw(grid);
             cell.label(grid);
         })
 
+        Graphics.fillRect(0, 0, w, y1)
+        Graphics.fillRect(0, 0, x1, h)
+        Graphics.fillRect(0, h-y1, w, h-y1)
+        Graphics.fillRect(w-x1, 0, w-x1, h)
 
-
+        //Graphics.drawCircle(App.width / 2, App.height / 2, 20, "red")
+        Game.drawPlayer();
 
     }   
 
@@ -84,7 +109,23 @@ class Game {
 
     }
 
-
+    static drawPlayer() {
+        let mx = 0
+        let my = 0
+        let rx = 60
+        let ry = rx * Game.grid.factor;
+        let points = [
+            {x: mx - rx, y: my     },
+            {x: mx     , y: my - ry},
+            {x: mx + rx, y: my     },
+            {x: mx     , y: my + ry},
+        ].map((point) => {return {x: point.x + App.width / 2, y: point.y + (App.height / 2)}})
+        console.log(points)
+        Graphics.fillPoly(points, "red");
+        Graphics.context.lineWidth = 2;
+        Graphics.outlinePoly(points, "black");
+        Graphics.context.lineWidth = 1;
+    }
 
 }
 
@@ -104,7 +145,7 @@ class Cell {
         this.wallColour = wallColour
         this.index = i;
         this.height = height;
-        this.heightStep = 2;
+        this.heightStep = 5;
     }
 
     static makeCellArray(grid: Grid) {
@@ -134,9 +175,9 @@ class Cell {
 
     static blankCellArray(grid: Grid): [Cell[], Grid] {
         let cells = []
-        let b = 3;
+        let b = 4;
         let newGrid = new Grid(grid.factor, grid.w + 2*b, grid.h + 2*b, grid.cellWidth);
-        //newGrid.gameOrigin = {x: -b/2, y: b/2}
+        newGrid.gameOrigin = {x: -b, y: b}
         
         for (let y = 0; y < newGrid.h; y++) {
             for (let x = 0; x < newGrid.w; x++) {
@@ -161,7 +202,7 @@ class Cell {
     }
 
     getCoords(grid: Grid): {top: {x: number, y: number}[], walls: {x: number, y: number}[], midpoint: {x: number, y: number}} {
-        let heightStep = 2;
+        let heightStep = grid.heightStep;
         let height = Math.floor(this.height);
         let [points, midpoint] = this.gameCoordToIsometricScreenCell(grid);
         let newPoints = points.map((point) => {return {x: point.x, y: point.y - height * heightStep}});
@@ -202,7 +243,7 @@ class Cell {
 
     label(grid: Grid) {
         let midpoint = this.getMidpoint(grid);
-        midpoint.y = midpoint.y - this.height * this.heightStep;
+        midpoint.y = midpoint.y - this.height * grid.heightStep;
         Graphics.text(`x: ${this.x}, y: ${this.y}`, midpoint.x - 25, midpoint.y + 8, "black");
     }
 
@@ -255,6 +296,7 @@ class Grid {
     cells: Cell[];
     windowW: number;
     windowH: number;
+    heightStep: number;
 
 
     constructor(
@@ -264,6 +306,7 @@ class Grid {
         cellWidth?: number,
         gameOrigin?: {x: number, y: number},
         mapScreenOrigin?: {x: number, y: number},
+        heightStep?: number,
     ) {
         this.factor = factor;
         this.w = width;
@@ -292,13 +335,19 @@ class Grid {
         }
         this.mapScreenOrigin = mapScreenOrigin!;
 
+        if (typeof heightStep === "undefined") {
+            heightStep = 5;
+        }
+        this.heightStep = heightStep;
         this.centerMidpointx = (this.gameOrigin.x * this.cellWidth) - (this.gameOrigin.y * this.cellWidth) + this.mapScreenOrigin.x
         this.centerMidpointy = (this.gameOrigin.y * this.cellHeight) + (this.gameOrigin.x * this.cellHeight) + this.mapScreenOrigin.y
-    
+        console.log(this)
         this.cells = Cell.makeCellArray(this);
     }
 
-    getCenterMidpoint() {
-        
+    updateCenterMidpoint() {
+        this.centerMidpointx = (this.gameOrigin.x * this.cellWidth) - (this.gameOrigin.y * this.cellWidth) + this.mapScreenOrigin.x
+        this.centerMidpointy = (this.gameOrigin.y * this.cellHeight) + (this.gameOrigin.x * this.cellHeight) + this.mapScreenOrigin.y
+    
     }
 }
