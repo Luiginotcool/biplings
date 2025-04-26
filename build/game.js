@@ -8,7 +8,7 @@ class Game {
         Game.cells = [];
         let factor = 1 / 2;
         let width = 3;
-        let height = 10;
+        let height = 6;
         Game.grid = new Grid(factor, width, height);
         for (let y = 0; y < Game.grid.h; y++) {
             for (let x = 0; x < Game.grid.w; x++) {
@@ -61,40 +61,10 @@ class Game {
     }
     static gameCoordToIsometricScreenCell(x, y, grid) {
         y = -y;
-        // 0, 0 -> 
-        //      mx - xrad, my
-        //      mx, my - yrad
-        //      mx + xrad, my
-        //      mx, my + yrad
-        //  Get center
-        //  Calculate points
-        // gap * numx = sw
-        // xrad / yrad = sw / sh
-        // 0, 0 -> sw/2, sh/2
-        // 1, 0 -> sw/2 + gap, sh/2
-        let factor = grid.factor;
         let cellWidth = grid.cellWidth;
         let cellHeight = grid.cellHeight;
-        let numx = grid.w;
-        let numy = grid.h;
-        let gridw;
-        if (x > y) {
-            gridw = (-1 + numy) * cellWidth * 2 + (numx - numy) * cellWidth;
-        }
-        else {
-            gridw = (-1 + numx) * cellWidth * 2 + (numy - numx) * cellWidth;
-        }
-        let gameOrigin = { x: 0, y: 0 };
-        let mapScreenOrigin = { x: (App.width - gridw) / 2, y: App.height / 2 };
-        let centerMidpointx = (gameOrigin.x * cellWidth) - (gameOrigin.y * cellWidth) + mapScreenOrigin.x;
-        let centerMidpointy = (gameOrigin.y * cellHeight) + (gameOrigin.x * cellHeight) + mapScreenOrigin.y;
-        //Graphics.drawCircle(centerMidpointx, centerMidpointy, 20);
-        // Total screen width
-        // if x > y
-        // Total grid w is numy * width * 2 + (numx - numy) * width
-        // if y > x
-        // Total grid w is numx * width * 2 + (numy - numx) * width
-        // origin is screenw - gridw / 2
+        let centerMidpointx = grid.centerMidpointx;
+        let centerMidpointy = grid.centerMidpointy;
         let mx = centerMidpointx + (x * cellWidth) - (y * cellWidth);
         let my = centerMidpointy + (y * cellHeight) + (x * cellHeight);
         let rx = cellWidth;
@@ -134,13 +104,34 @@ class Cell {
             midpoint: midpoint
         };
     }
+    draw(graphics, grid) {
+        let height = this.height;
+        this.height = this.height + 0 * (2 - 1 * ((this.x - Game.grid.w / 2) *
+            (this.y - Game.grid.h / 2))) *
+            Math.sin((2 - 1 * ((this.x - Game.grid.w / 2) *
+                (this.y - Game.grid.h / 2))) * App.frames / 100);
+        let coords = this.getCoords(grid);
+        this.height = height;
+        let topPoints = coords.top;
+        let wallsPoints = coords.walls;
+        let midpoint = coords.midpoint;
+        Graphics.fillPoly(wallsPoints.slice(0, 4), this.wallColour);
+        Graphics.fillPoly(wallsPoints.slice(4, 8), this.wallColour);
+        Graphics.fillPoly(wallsPoints.slice(8, 12), this.wallColour);
+        Graphics.fillPoly(wallsPoints.slice(12, 16), this.wallColour);
+        Graphics.fillPoly(topPoints, this.colour);
+        Graphics.outlinePoly(topPoints, "black");
+        Graphics.outlinePoly(wallsPoints.slice(0, 4), "black");
+        Graphics.outlinePoly(wallsPoints.slice(4, 8), "black");
+        Graphics.text(`x: ${this.x}, y: ${this.y}`, midpoint.x - 25, midpoint.y + 8, "black");
+    }
 }
 class Grid {
-    constructor(factor, width, height = width, cellWidth = -1, gameOrigin = { x: 0, y: 0 }, mapScreenOrigin) {
+    constructor(factor, width, height = width, cellWidth, gameOrigin, mapScreenOrigin) {
         this.factor = factor;
         this.w = width;
         this.h = height;
-        if (cellWidth < 0) {
+        if (typeof cellWidth === "undefined") {
             let screenW = App.width;
             let screenH = App.height;
             this.cellWidth = screenW / (this.w + this.h);
@@ -150,12 +141,17 @@ class Grid {
         }
         this.cellHeight = this.cellWidth * factor;
         console.log(this.cellWidth);
-        this.sw = this.cellWidth * (this.w + this.h);
+        this.sw = this.cellWidth * (this.w + this.h - 2);
         this.sh = this.sw * this.factor;
-        this.gameOrigin = { x: 0, y: 0 };
-        if (this.mapScreenOrigin === undefined) {
+        if (typeof gameOrigin === "undefined") {
+            gameOrigin = { x: 0, y: 0 };
+        }
+        this.gameOrigin = gameOrigin;
+        if (typeof mapScreenOrigin === "undefined") {
             mapScreenOrigin = { x: (App.width - this.sw) / 2, y: App.height / 2 };
         }
         this.mapScreenOrigin = mapScreenOrigin;
+        this.centerMidpointx = (this.gameOrigin.x * this.cellWidth) - (this.gameOrigin.y * this.cellWidth) + this.mapScreenOrigin.x;
+        this.centerMidpointy = (this.gameOrigin.y * this.cellHeight) + (this.gameOrigin.x * this.cellHeight) + this.mapScreenOrigin.y;
     }
 }
