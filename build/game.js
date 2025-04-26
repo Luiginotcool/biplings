@@ -1,10 +1,6 @@
 "use strict";
 class Game {
     static init() {
-        App.canvas.onclick = () => {
-            Graphics.drawCircle(Input.mouseX, Input.mouseY, 10, `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`);
-        };
-        let colours = [];
         Game.cells = [];
         let factor = 1 / 2;
         let width = 3;
@@ -16,12 +12,12 @@ class Game {
                 let colour = (x >= 2 && x <= 4 && y >= 2 && y <= 4) ? "grey" : "white";
                 let wallColour = Colour.HSLtoRGB((Math.pow(x + y, 1 / 2)) % 1, 1, 0.25).tocss();
                 let p = 0.05;
-                let height = 0 * Math.exp(-Math.pow(x - Game.grid.w / 2, 2) * p - Math.pow(y - Game.grid.h / 2, 2) * p);
+                let height = 50 * Math.exp(-Math.pow(x - Game.grid.w / 2, 2) * p - Math.pow(y - Game.grid.h / 2, 2) * p);
                 let cell = new Cell(this.cells.length, x, y, colour, wallColour, height);
                 Game.cells.push(cell);
             }
         }
-        Game.cells.sort(Game.sortIsoDist);
+        Game.sortCells(Game.cells);
     }
     static gameLoop(dt) {
         Game.draw();
@@ -33,48 +29,15 @@ class Game {
         let sw = grid.cellWidth * (grid.w + grid.h);
         let sh = sw * grid.factor;
         //Graphics.fillRect()
-        //console.log(Game.cells)
         Game.cells.forEach((cell) => {
-            let height = cell.height;
-            cell.height = cell.height + 0 * (2 - 1 * ((cell.x - Game.grid.w / 2) * (cell.y - Game.grid.h / 2))) * Math.sin((2 - 1 * ((cell.x - Game.grid.w / 2) * (cell.y - Game.grid.h / 2))) * App.frames / 100);
-            let coords = cell.getCoords(this.grid);
-            cell.height = height;
-            let topPoints = coords.top;
-            let wallsPoints = coords.walls;
-            let midpoint = coords.midpoint;
-            Graphics.fillPoly(wallsPoints.slice(0, 4), cell.wallColour);
-            Graphics.fillPoly(wallsPoints.slice(4, 8), cell.wallColour);
-            Graphics.fillPoly(wallsPoints.slice(8, 12), cell.wallColour);
-            Graphics.fillPoly(wallsPoints.slice(12, 16), cell.wallColour);
-            Graphics.fillPoly(topPoints, cell.colour);
-            Graphics.outlinePoly(topPoints, "black");
-            Graphics.outlinePoly(wallsPoints.slice(0, 4), "black");
-            Graphics.outlinePoly(wallsPoints.slice(4, 8), "black");
-            Graphics.text(`x: ${cell.x}, y: ${cell.y}`, midpoint.x - 25, midpoint.y + 8, "black");
-            //console.log(cell.x, cell.y, midpoint)
+            cell.draw(grid);
+            cell.label(grid);
         });
     }
-    static sortIsoDist(cell1, cell2) {
-        return -(cell1.y - cell1.x) + (cell2.y - cell2.x);
+    static sortCells(cells) {
+        cells.sort((cell1, cell2) => { return -(cell1.y - cell1.x) + (cell2.y - cell2.x); });
     }
     static screenCoordToGameCoord(x, y) {
-    }
-    static gameCoordToIsometricScreenCell(x, y, grid) {
-        y = -y;
-        let cellWidth = grid.cellWidth;
-        let cellHeight = grid.cellHeight;
-        let centerMidpointx = grid.centerMidpointx;
-        let centerMidpointy = grid.centerMidpointy;
-        let mx = centerMidpointx + (x * cellWidth) - (y * cellWidth);
-        let my = centerMidpointy + (y * cellHeight) + (x * cellHeight);
-        let rx = cellWidth;
-        let ry = cellHeight;
-        return [[
-                { x: mx - rx, y: my },
-                { x: mx, y: my - ry },
-                { x: mx + rx, y: my },
-                { x: mx, y: my + ry },
-            ], { x: mx, y: my }];
     }
 }
 class Cell {
@@ -85,11 +48,27 @@ class Cell {
         this.wallColour = wallColour;
         this.index = i;
         this.height = height;
+        this.heightStep = 2;
+    }
+    static makeCellArray(grid) {
+        let cells = [];
+        for (let y = 0; y < grid.h; y++) {
+            for (let x = 0; x < grid.w; x++) {
+                //let colour = Colour.HSLtoRGB((Math.pow(x+y, 1/3))%1, 1, 0.65).tocss()
+                let colour = (x >= 2 && x <= 4 && y >= 2 && y <= 4) ? "grey" : "white";
+                let wallColour = Colour.HSLtoRGB((Math.pow(x + y, 1 / 2)) % 1, 1, 0.25).tocss();
+                let p = 0.05;
+                let height = 0;
+                let cell = new Cell(cells.length, x, y, colour, wallColour, height);
+                Game.cells.push(cell);
+            }
+        }
+        Game.sortCells(Game.cells);
     }
     getCoords(grid) {
         let heightStep = 2;
         let height = Math.floor(this.height);
-        let [points, midpoint] = Game.gameCoordToIsometricScreenCell(this.x, this.y, grid);
+        let [points, midpoint] = this.gameCoordToIsometricScreenCell(grid);
         let newPoints = points.map((point) => { return { x: point.x, y: point.y - height * heightStep }; });
         let wallsPoints = [
             points[0], points[3], newPoints[3], newPoints[0],
@@ -104,7 +83,7 @@ class Cell {
             midpoint: midpoint
         };
     }
-    draw(graphics, grid) {
+    draw(grid) {
         let height = this.height;
         this.height = this.height + 0 * (2 - 1 * ((this.x - Game.grid.w / 2) *
             (this.y - Game.grid.h / 2))) *
@@ -114,7 +93,6 @@ class Cell {
         this.height = height;
         let topPoints = coords.top;
         let wallsPoints = coords.walls;
-        let midpoint = coords.midpoint;
         Graphics.fillPoly(wallsPoints.slice(0, 4), this.wallColour);
         Graphics.fillPoly(wallsPoints.slice(4, 8), this.wallColour);
         Graphics.fillPoly(wallsPoints.slice(8, 12), this.wallColour);
@@ -123,7 +101,38 @@ class Cell {
         Graphics.outlinePoly(topPoints, "black");
         Graphics.outlinePoly(wallsPoints.slice(0, 4), "black");
         Graphics.outlinePoly(wallsPoints.slice(4, 8), "black");
+    }
+    label(grid) {
+        let midpoint = this.getMidpoint(grid);
+        midpoint.y = midpoint.y - this.height * this.heightStep;
         Graphics.text(`x: ${this.x}, y: ${this.y}`, midpoint.x - 25, midpoint.y + 8, "black");
+    }
+    getMidpoint(grid) {
+        let x, y;
+        x = this.x;
+        y = -this.y;
+        let mx = grid.centerMidpointx + (x * grid.cellWidth) - (y * grid.cellWidth);
+        let my = grid.centerMidpointy + (y * grid.cellHeight) + (x * grid.cellHeight);
+        return { x: mx, y: my };
+    }
+    gameCoordToIsometricScreenCell(grid) {
+        let x, y;
+        x = this.x;
+        y = -this.y;
+        let cellWidth = grid.cellWidth;
+        let cellHeight = grid.cellHeight;
+        let centerMidpointx = grid.centerMidpointx;
+        let centerMidpointy = grid.centerMidpointy;
+        let mx = centerMidpointx + (x * cellWidth) - (y * cellWidth);
+        let my = centerMidpointy + (y * cellHeight) + (x * cellHeight);
+        let rx = cellWidth;
+        let ry = cellHeight;
+        return [[
+                { x: mx - rx, y: my },
+                { x: mx, y: my - ry },
+                { x: mx + rx, y: my },
+                { x: mx, y: my + ry },
+            ], { x: mx, y: my }];
     }
 }
 class Grid {
